@@ -100,8 +100,9 @@ las_files (1)──────►(N) curves (1)──────►(N) curve_s
 - Curve metadata and depth-indexed samples stored in PostgreSQL/TimescaleDB
 - NaN/Inf values sanitized to NULL on ingestion
 - **Duplicate detection**: SHA-256 content hashing prevents re-processing the same file — returns existing data instantly
-- **Previously uploaded files**: Landing page shows all previously uploaded wells for quick re-access
+- **Previously uploaded files**: Landing page shows recent wells in a horizontal carousel for quick re-access
 - **Granular upload progress**: Status updates at each stage (uploading, parsing, storing, loading metadata)
+- **Landing page**: “How it works” animated pipeline (upload → parse & store → visualize → AI interpret); WellLogAI logo links back to home from the dashboard
 
 ### 2. Visualization
 - **Multi-track layout**: Each curve gets its own x-axis with independent scaling (industry-standard well-log display)
@@ -123,8 +124,8 @@ las_files (1)──────►(N) curves (1)──────►(N) curve_s
 - Results displayed with per-curve statistics (min/mean/max) and formatted interpretation text
 - **Export**: Download interpretation results as a formatted text report
 
-### 4. Chatbot Interface
-- Floating chat panel with conversational interface
+### 4. Chatbot Interface (Jarvis)
+- **Jarvis** — AI assistant available as an Analysis | Chat tab in the right panel (no floating overlay)
 - **Context-aware**: Sends current selection context (selected curves, depth range) to AI so answers focus on what the user is viewing
 - Sends well context (all curve names, units, statistics) to AI
 - Quick-query buttons for common questions
@@ -137,6 +138,7 @@ las_files (1)──────►(N) curves (1)──────►(N) curve_s
 - Upload error display with dismissible alert
 - Configurable API URL via `NEXT_PUBLIC_API_URL` environment variable
 - Health check endpoint (`/api/health`) for monitoring
+- **Session persistence**: Dashboard URL includes `?file_id=` so refreshing keeps the same well; selected curves are restored from session storage
 
 ## Tech Stack
 
@@ -161,7 +163,7 @@ las_files (1)──────►(N) curves (1)──────►(N) curve_s
 - Python 3.11+
 - Node.js 18+
 - AWS account with S3 bucket
-- Groq API key (free at [console.groq.com](https://console.groq.com))
+- Groq or Gemini API key (at least one for AI features; Groq free at [console.groq.com](https://console.groq.com))
 
 ### 1. Start Database
 
@@ -172,11 +174,27 @@ docker compose up -d
 
 ### 2. Configure Environment
 
+**Backend** — copy the example and fill in your values:
+
 ```bash
 cd backend
 cp .env.example .env
-# Edit .env with your actual credentials
 ```
+
+Edit `backend/.env` with:
+
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | PostgreSQL connection string. For local Docker: `postgresql://welllog:welllogpass@localhost:5432/welllog_ai` |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `S3_BUCKET_NAME` | S3 credentials and bucket for storing raw LAS files |
+| `GROQ_API_KEY` | Optional. Free at [console.groq.com](https://console.groq.com) — enables AI interpretation & chat |
+| `GEMINI_API_KEY` | Optional. Fallback for AI if Groq is not set. At least one of Groq or Gemini is needed for AI features |
+
+**Frontend** (optional) — only if your backend runs at a different URL (e.g. production):
+
+- Create `frontend/.env.local` with `NEXT_PUBLIC_API_URL=https://your-backend-url`
+
+If unset, the frontend uses `http://localhost:8000`.
 
 ### 3. Start Backend
 
@@ -224,7 +242,7 @@ well_log/
 │   │   ├── page.tsx          # Main dashboard (upload, viz, AI panel)
 │   │   ├── layout.tsx        # Root layout
 │   │   └── globals.css       # Dark theme styles
-│   ├── components/           # UI components (PlotlyChart, shadcn)
+│   ├── components/           # PlotlyChart, PipelineAnimation (landing), shadcn UI
 │   └── lib/
 │       └── api.ts            # Backend API client (configurable URL)
 ├── infra/
