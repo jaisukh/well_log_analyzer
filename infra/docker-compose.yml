@@ -1,0 +1,19 @@
+services:
+  db:
+    image: timescale/timescaledb:latest-pg15
+    container_name: welllog_db
+    restart: always
+    environment:
+      POSTGRES_USER: welllog
+      POSTGRES_PASSWORD: welllogpass
+      POSTGRES_DB: welllog_ai
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/init.sql
+      - welllog_pgdata:/var/lib/postgresql/data
+
+volumes:
+  welllog_pgdata:
+
+

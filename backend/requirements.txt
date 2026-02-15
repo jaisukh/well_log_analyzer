@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+
+python-multipart
+lasio
+
+sqlalchemy
+psycopg2-binary
+alembic
+
+boto3
+
+openai
+google-generativeai
+pydantic
+python-dotenv
+
