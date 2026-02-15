@@ -2,6 +2,8 @@
 
 A full-stack web application for ingesting LAS (Log ASCII Standard) files, visualizing depth-indexed well-log curves, and performing AI-assisted petrophysical interpretation.
 
+**Live demo:** [welllogai.online](https://www.welllogai.online)
+
 ## Architecture Overview
 
 ```
@@ -213,6 +215,53 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+### 5. (Optional) Sample LAS file
+
+Use any `.las` well-log file to try the app. If you don't have one, search for "LAS file sample" or use public well-log datasets from state geological surveys or open data portals.
+
+## Deployment
+
+The recommended production setup is **Vercel (frontend)** + **Railway (backend + database)**.
+
+### Backend & database (Railway)
+
+1. Create a project at [railway.app](https://railway.app) and **Provision PostgreSQL**. Copy the `DATABASE_URL` (use the **public** connection URL, not the internal `postgres.railway.internal` one).
+2. **New** → **GitHub Repo** → select this repo. Set **Root Directory** to `backend`.
+3. **Variables**: add `DATABASE_URL`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `S3_BUCKET_NAME`, `GROQ_API_KEY` (and/or `GEMINI_API_KEY`).
+4. **Settings** → set **Start Command** to: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+5. **Settings** → **Networking** → **Generate Domain**. Copy the backend URL (e.g. `https://your-app.up.railway.app`).
+
+### Frontend (Vercel)
+
+1. At [vercel.com](https://vercel.com), **Add New** → **Project** → import this repo.
+2. Set **Root Directory** to `frontend`.
+3. **Environment Variables** → add `NEXT_PUBLIC_API_URL` = your Railway backend URL (**no trailing slash**). Redeploy so the value is baked into the build.
+4. Deploy and copy your Vercel URL (e.g. `https://your-app.vercel.app`).
+
+### CORS
+
+In `backend/app/main.py`, add your frontend origin(s) to `allow_origins`:
+
+```python
+allow_origins=[
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://your-app.vercel.app",
+    "https://www.yourdomain.com",   # custom domain
+    "https://yourdomain.com",       # if you use both www and non-www
+],
+```
+
+Commit and push so Railway redeploys. Without this, the browser will block API requests from your frontend (CORS error).
+
+### Custom domain (Vercel)
+
+1. **Vercel** → Project → **Settings** → **Domains** → add your domain (e.g. `www.yourdomain.com` or `yourdomain.com`).
+2. Add the **CNAME** (for subdomains) or **A** record (for root) at your DNS provider as shown by Vercel. Wait for DNS to propagate; Vercel will issue SSL automatically.
+3. Add the same origin(s) to `allow_origins` in `backend/app/main.py` (e.g. `https://www.yourdomain.com`) and redeploy the backend.
+
+**Note:** `NEXT_PUBLIC_API_URL` is fixed at **build time**. If you change it in Vercel, you must **redeploy** the frontend for the change to take effect.
 
 ## Project Structure
 
