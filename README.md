@@ -4,27 +4,98 @@ A full-stack web application for ingesting LAS (Log ASCII Standard) files, visua
 
 **Live demo:** [welllogai.online](https://www.welllogai.online)
 
-## Architecture Overview
+---
 
+## 🏗️ Architecture Overview
+
+```mermaid
+graph TB
+    Browser[Web Browser]
+    
+    subgraph Frontend
+        NextJS[Next.js 16 + React 19]
+        Plotly[Plotly.js Visualization]
+        UI[Shadcn UI + Tailwind]
+    end
+    
+    subgraph Backend
+        API[FastAPI Python 3.11+]
+        ORM[SQLAlchemy ORM]
+    end
+    
+    subgraph Data
+        PG[(PostgreSQL)]
+        TS[(TimescaleDB)]
+        S3[Amazon S3]
+    end
+    
+    subgraph AI
+        Groq[Groq API]
+        Gemini[Gemini API]
+        Rules[Rule Engine]
+    end
+    
+    Browser -->|HTTPS| NextJS
+    NextJS -->|REST API| API
+    NextJS --> Plotly
+    NextJS --> UI
+    
+    API --> ORM
+    API --> PG
+    API --> TS
+    API --> S3
+    API --> Groq
+    API --> Gemini
+    Groq --> Rules
+    
+    PG -.-> TS
+
+    style NextJS fill:#3b82f6,stroke:#1e40af,color:#fff
+    style Plotly fill:#3b82f6,stroke:#1e40af,color:#fff
+    style UI fill:#3b82f6,stroke:#1e40af,color:#fff
+    style API fill:#8b5cf6,stroke:#6d28d9,color:#fff
+    style ORM fill:#8b5cf6,stroke:#6d28d9,color:#fff
+    style PG fill:#10b981,stroke:#059669,color:#fff
+    style TS fill:#10b981,stroke:#059669,color:#fff
+    style S3 fill:#10b981,stroke:#059669,color:#fff
+    style Groq fill:#f59e0b,stroke:#d97706,color:#fff
+    style Gemini fill:#f59e0b,stroke:#d97706,color:#fff
+    style Rules fill:#f59e0b,stroke:#d97706,color:#fff
 ```
-┌──────────────────────┐       REST API        ┌──────────────────────────┐
-│   Frontend (Next.js) │  ◄──────────────────►  │   Backend (FastAPI)      │
-│   React 19 + Plotly  │   localhost:3000→8000   │   Python 3.11+           │
-└──────────────────────┘                        └─────────┬────────────────┘
-                                                          │
-                                          ┌───────────────┼───────────────┐
-                                          ▼               ▼               ▼
-                                    ┌──────────┐   ┌──────────┐   ┌──────────┐
-                                    │PostgreSQL │   │ Amazon S3│   │  AI APIs │
-                                    │TimescaleDB│   │ (raw LAS)│   │Groq/Gemini│
-                                    └──────────┘   └──────────┘   └──────────┘
-```
 
-**Frontend:** Next.js 16 (App Router) with React 19, Plotly.js for visualization, Shadcn UI components, Tailwind CSS dark theme.
+### 📋 Stack Summary
 
-**Backend:** FastAPI with SQLAlchemy ORM, serving REST APIs. All sensitive credentials (AWS keys, AI API keys, DB credentials) are stored server-side in `.env` — never exposed to the client.
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| **⚛️ Frontend** | Next.js 16 (App Router) + React 19 | Server-side rendering, routing, React components |
+| | Plotly.js | Interactive depth-indexed well-log visualization |
+| | Shadcn UI + Tailwind CSS | Component library with custom dark theme |
+| **⚡ Backend** | FastAPI (Python 3.11+) | High-performance async REST API |
+| | SQLAlchemy ORM | Database abstraction and query building |
+| **💾 Data** | PostgreSQL + TimescaleDB | Relational metadata + hypertable-optimized time-series |
+| | Amazon S3 | Durable object storage for raw LAS files |
+| **🤖 AI** | Groq (Llama 3.3 70B) | Primary AI interpretation engine |
+| | Google Gemini (2.0 Flash) | Fallback AI provider |
+| | Rule-based Engine | Analytical fallback (trend detection, anomaly detection) |
 
-**Infrastructure:** PostgreSQL + TimescaleDB via Docker Compose. Amazon S3 for raw file storage.
+### 🔒 Security Model
+
+All sensitive credentials are stored **server-side only** in `.env`:
+- AWS Access Keys
+- AI API Keys (Groq/Gemini)
+- Database Credentials
+- Never exposed to client
+
+### 🔄 Data Flow
+
+1. **Upload** → User uploads LAS file through React frontend
+2. **Storage** → File stored in S3, SHA-256 hash computed for duplicate detection
+3. **Parsing** → Backend parses LAS with `lasio`, extracts curve metadata
+4. **Database** → Metadata → PostgreSQL, depth-indexed samples → TimescaleDB hypertable
+5. **Visualization** → Plotly.js renders multi-track depth curves with independent scaling
+6. **Analysis** → AI APIs provide petrophysical interpretation on selected curves/depth range
+
+---
 
 ## API Endpoints
 
@@ -38,6 +109,8 @@ A full-stack web application for ingesting LAS (Log ASCII Standard) files, visua
 | POST | `/api/chat` | Chatbot for data-driven well questions |
 | GET | `/api/files` | List all previously uploaded wells |
 | GET | `/api/health` | Health check endpoint |
+
+---
 
 ## Database Choice: PostgreSQL + TimescaleDB
 
@@ -85,6 +158,8 @@ las_files (1)──────►(N) curves (1)──────►(N) curve_s
 - **`curves`**: One row per curve mnemonic per file. Stores name, unit, and description.
 - **`curve_samples`**: The bulk data table — one row per (curve, depth) pair. Configured as a TimescaleDB hypertable partitioned on `depth` for optimized range queries. `NULL` values represent missing/invalid readings (NaN/Inf from the LAS file are sanitized on ingestion).
 
+---
+
 ## Storage Strategy
 
 | Data | Storage | Rationale |
@@ -92,6 +167,8 @@ las_files (1)──────►(N) curves (1)──────►(N) curve_s
 | **Original LAS file** | Amazon S3 (`las-files/{filename}`) | Preserves the raw file for re-parsing, audit, or download. S3 provides durable, scalable object storage. |
 | **Parsed curve metadata** | PostgreSQL `curves` table | Enables fast lookups, categorization, and joins with sample data. |
 | **Curve sample data** | PostgreSQL `curve_samples` hypertable | Optimized for the primary access pattern: "give me values for curve X between depth A and depth B." |
+
+---
 
 ## Features
 
@@ -104,7 +181,7 @@ las_files (1)──────►(N) curves (1)──────►(N) curve_s
 - **Duplicate detection**: SHA-256 content hashing prevents re-processing the same file — returns existing data instantly
 - **Previously uploaded files**: Landing page shows recent wells in a horizontal carousel for quick re-access
 - **Granular upload progress**: Status updates at each stage (uploading, parsing, storing, loading metadata)
-- **Landing page**: “How it works” animated pipeline (upload → parse & store → visualize → AI interpret); WellLogAI logo links back to home from the dashboard
+- **Landing page**: "How it works" animated pipeline (upload → parse & store → visualize → AI interpret); WellLogAI logo links back to home from the dashboard
 
 ### 2. Visualization
 - **Multi-track layout**: Each curve gets its own x-axis with independent scaling (industry-standard well-log display)
@@ -142,6 +219,8 @@ las_files (1)──────►(N) curves (1)──────►(N) curve_s
 - Health check endpoint (`/api/health`) for monitoring
 - **Session persistence**: Dashboard URL includes `?file_id=` so refreshing keeps the same well; selected curves are restored from session storage
 
+---
+
 ## Tech Stack
 
 | Layer | Technology | Version |
@@ -157,6 +236,8 @@ las_files (1)──────►(N) curves (1)──────►(N) curve_s
 | LAS Parsing | lasio | Latest |
 | AI (Primary) | Groq API (Llama 3.3 70B) | Latest |
 | AI (Fallback) | Google Gemini API | 2.0 Flash |
+
+---
 
 ## Setup & Running
 
@@ -220,6 +301,8 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 Use any `.las` well-log file to try the app. If you don't have one, search for "LAS file sample" or use public well-log datasets from state geological surveys or open data portals.
 
+---
+
 ## Deployment
 
 The recommended production setup is **Vercel (frontend)** + **Railway (backend + database)**.
@@ -263,6 +346,8 @@ Commit and push so Railway redeploys. Without this, the browser will block API r
 
 **Note:** `NEXT_PUBLIC_API_URL` is fixed at **build time**. If you change it in Vercel, you must **redeploy** the frontend for the change to take effect.
 
+---
+
 ## Project Structure
 
 ```
@@ -299,3 +384,7 @@ well_log/
 │   └── postgres-init.sql     # DB initialization (hypertable)
 └── README.md
 ```
+
+---
+
+
