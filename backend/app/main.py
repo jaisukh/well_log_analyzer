@@ -24,7 +24,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "http://127.0.0.1:3000",
-        "https://well-log-analyzer-henna.vercel.app/",
+        "https://well-log-analyzer-henna.vercel.app",
         "https://www.welllogai.online",
         "https://welllogai.online",
     ],

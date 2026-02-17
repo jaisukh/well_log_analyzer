@@ -15,3 +15,8 @@ google-generativeai
 pydantic
 python-dotenv
 
+# Testing
+pytest
+httpx
+pytest-cov
+

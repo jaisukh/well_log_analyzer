@@ -62,6 +62,9 @@ const TRACK_COLORS = [
 /** GitHub repo URL — update to your repo (landing page nav icon) */
 const GITHUB_REPO_URL = "https://github.com/jaisukh/well_log_analyzer";
 
+/** Max curves selectable at once — keeps plot and AI analysis performant */
+const MAX_SELECTABLE_CURVES = 5;
+
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
@@ -75,6 +78,8 @@ export default function WellLogDashboard() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadStatus, setUploadStatus] = useState<string>("");
   const [uploadError, setUploadError] = useState<string>("");
+  const [curveLimitMsg, setCurveLimitMsg] = useState<string>("");
+  const curveLimitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const recentScrollRef = useRef<HTMLDivElement>(null);
   const [previousFiles, setPreviousFiles] = useState<
     { file_id: number; filename: string; uploaded_at: string | null; curve_count: number }[]
@@ -180,7 +185,7 @@ export default function WellLogDashboard() {
               if (saved) {
                 const ids: number[] = JSON.parse(saved);
                 const validIds = Object.values(meta.categories).flat().map((c) => c.id);
-                const restored = ids.filter((id) => validIds.includes(id));
+                const restored = ids.filter((id) => validIds.includes(id)).slice(0, MAX_SELECTABLE_CURVES);
                 if (restored.length > 0) _setSelectedIds(restored);
               }
             } catch {}
@@ -274,14 +279,20 @@ export default function WellLogDashboard() {
   /*  Curve toggle                                                     */
   /* ---------------------------------------------------------------- */
   function toggleCurve(id: number) {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
+    setSelectedIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= MAX_SELECTABLE_CURVES) {
+        setCurveLimitMsg(`Select at max ${MAX_SELECTABLE_CURVES} curves.`);
+        if (curveLimitTimerRef.current) clearTimeout(curveLimitTimerRef.current);
+        curveLimitTimerRef.current = setTimeout(() => {
+          setCurveLimitMsg("");
+        }, 2200);
+        return prev;
+      }
+      return [...prev, id];
+    });
   }
 
-  function selectAll() {
-    setSelectedIds(allCurves.map((c) => c.id));
-  }
   function clearAll() {
     setSelectedIds([]);
     setPlotTraces([]);
@@ -328,7 +339,9 @@ export default function WellLogDashboard() {
           xaxis: xAxisKey,
           line: { color: TRACK_COLORS[i % TRACK_COLORS.length], width: 1.5 },
         });
-        names.push(meta?.name ?? "");
+        const unit = (meta?.unit || res?.unit || "").trim();
+        const label = meta?.name ?? `#${cid}`;
+        names.push(unit ? `${label} (${unit})` : label);
       });
       setPlotTraces(traces);
       setPlotNames(names);
@@ -753,11 +766,24 @@ export default function WellLogDashboard() {
                 {selectedIds.length}/{allCurves.length}
               </span>
             </div>
-            <div className="flex gap-2 text-[11px] mt-1">
-              <button onClick={selectAll} className="text-teal-400 hover:text-teal-300 font-medium transition-colors">Select All</button>
-              <span className="text-slate-700">|</span>
+            <div className="flex items-center gap-2 text-[11px] mt-1">
               <button onClick={clearAll} className="text-slate-500 hover:text-slate-300 transition-colors">Clear</button>
             </div>
+            {curveLimitMsg && (
+              <div className="mt-2 rounded-lg border border-rose-500/20 bg-rose-500/10 px-2.5 py-2 text-[11px] text-rose-200">
+                <div className="flex items-start justify-between gap-2">
+                  <span>{curveLimitMsg}</span>
+                  <button
+                    onClick={() => setCurveLimitMsg("")}
+                    className="text-rose-200/70 hover:text-rose-200 transition-colors"
+                    aria-label="Dismiss"
+                    type="button"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* -- Curve Categories (scrollable area) -- */}
@@ -941,11 +967,19 @@ export default function WellLogDashboard() {
                       paper_bgcolor: "#0b1120",
                       plot_bgcolor: "#0f172a",
                       font: { color: "#94a3b8", size: 10 },
+                      hovermode: "closest",
                       yaxis: {
                         autorange: "reversed",
-                        title: { text: `Depth (${wellMeta.depth_unit})`, font: { color: "#64748b", size: 11 } },
+                        title: { text: `Depth (${wellMeta.depth_unit})`, font: { color: "#cbd5e1", size: 11 } },
+                        tickfont: { color: "#cbd5e1", size: 10 },
                         gridcolor: "#1e293b",
                         zerolinecolor: "#1e293b",
+                        showline: true,
+                        linecolor: "#334155",
+                        linewidth: 1,
+                        ticks: "outside",
+                        tickcolor: "#334155",
+                        ticklen: 4,
                       },
                       showlegend: false,
                       margin: { t: 30, r: 15, b: 10, l: 55 },
@@ -964,8 +998,14 @@ export default function WellLogDashboard() {
                         gridcolor: "#1e293b",
                         zerolinecolor: "#1e293b",
                         side: "top",
+                        tickfont: { color: "#cbd5e1", size: 9 },
+                        ticks: "outside",
+                        tickcolor: "#334155",
+                        ticklen: 4,
+                        tickwidth: 1,
                         showline: true,
-                        linecolor: "#1e293b",
+                        linecolor: "#334155",
+                        linewidth: 1,
                         anchor: "y",
                       };
                       // Draw vertical separator lines between tracks

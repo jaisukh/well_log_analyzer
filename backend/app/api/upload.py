@@ -2,6 +2,7 @@ import hashlib
 import math
 import os
 import shutil
+from typing import Optional, Sequence, Tuple
 
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -21,6 +22,64 @@ def _file_hash(path: str) -> str:
         for chunk in iter(lambda: f.read(8192), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def _clean_value(x) -> Optional[float]:
+    """Coerce to float and drop NaN/Inf."""
+    if x is None:
+        return None
+    f = float(x)
+    if math.isnan(f) or math.isinf(f):
+        return None
+    return f
+
+
+def _bulk_insert_curve_samples(
+    db: Session,
+    curve_id: int,
+    depth: Sequence[float],
+    values: Sequence,
+    batch_size: int = 10_000,
+) -> None:
+    """
+    Fast bulk insert for curve_samples.
+
+    - Postgres: uses psycopg2 execute_values for high throughput.
+    - Other DBs (e.g. SQLite tests): falls back to SQLAlchemy bulk_insert_mappings.
+    """
+    dialect = getattr(getattr(db, "bind", None), "dialect", None)
+    dialect_name = getattr(dialect, "name", "")
+
+    if dialect_name == "postgresql":
+        # Use DBAPI cursor for maximum insert speed
+        try:
+            from psycopg2.extras import execute_values  # type: ignore
+        except Exception:
+            execute_values = None  # type: ignore
+
+        if execute_values is not None:
+            conn = db.connection().connection  # DBAPI connection (psycopg2)
+            with conn.cursor() as cur:
+                sql = "INSERT INTO curve_samples (curve_id, depth, value) VALUES %s"
+                batch: list[Tuple[int, float, Optional[float]]] = []
+                for d, v in zip(depth, values):
+                    batch.append((curve_id, float(d), _clean_value(v)))
+                    if len(batch) >= batch_size:
+                        execute_values(cur, sql, batch, page_size=len(batch))
+                        batch.clear()
+                if batch:
+                    execute_values(cur, sql, batch, page_size=len(batch))
+            return
+
+    # Fallback: works across DB backends, slower but OK for tests/small files
+    mappings: list[dict] = []
+    for d, v in zip(depth, values):
+        mappings.append({"curve_id": curve_id, "depth": float(d), "value": _clean_value(v)})
+        if len(mappings) >= batch_size:
+            db.bulk_insert_mappings(CurveSample, mappings)
+            mappings.clear()
+    if mappings:
+        db.bulk_insert_mappings(CurveSample, mappings)
 
 
 @router.post("/upload-las")
@@ -91,14 +150,6 @@ async def upload_las(
     # ── Store curves + samples ──
     inserted_curves = []
 
-    def _clean(x):
-        if x is None:
-            return None
-        f = float(x)
-        if math.isnan(f) or math.isinf(f):
-            return None
-        return f
-
     for curve in curves_meta:
         curve_obj = Curve(
             las_file_id=las_file.id,
@@ -112,15 +163,7 @@ async def upload_las(
         inserted_curves.append(curve_obj.name)
 
         values = curve_data[curve_obj.name]
-        samples = [
-            CurveSample(
-                curve_id=curve_obj.id,
-                depth=float(d),
-                value=_clean(v),
-            )
-            for d, v in zip(depth, values)
-        ]
-        db.bulk_save_objects(samples)
+        _bulk_insert_curve_samples(db, curve_obj.id, depth, values)
 
     db.commit()
 

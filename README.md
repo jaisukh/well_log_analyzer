@@ -356,6 +356,16 @@ If you wiped or recreated the Postgres volume, all tables and data are gone. The
 
 ---
 
+## Testing
+
+Backend tests use `pytest` with a temporary SQLite database (no S3 calls, no real Postgres required).
+
+```bash
+cd backend
+pip install -r requirements.txt
+pytest -q
+```
+
 ## Project Structure
 
 ```
