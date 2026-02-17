@@ -366,6 +366,21 @@ pip install -r requirements.txt
 pytest -q
 ```
 
+---
+
+## Future Work (Production Hardening)
+
+If this were taken beyond a take-home assignment into a production system, the next improvements would be:
+
+- **Authentication & authorization**: protect endpoints (JWT/OAuth), multi-user isolation.
+- **Rate limiting & abuse protection**: per-IP/user limits for upload, chat, and interpretation (return HTTP 429).
+- **Background ingestion**: accept upload immediately, parse/insert asynchronously with job status + progress UI.
+- **Database migrations**: replace `Base.metadata.create_all` with Alembic migrations for safe schema evolution.
+- **Observability**: structured logging, request tracing, error monitoring (e.g., Sentry), metrics.
+- **Performance**: server-side downsampling/decimation for plotting very large curves; caching for common ranges.
+- **Security**: tighter CORS in production, file size limits, malware scanning for uploaded files.
+- **Test coverage**: mocked S3 integration tests, end-to-end (E2E) UI tests, CI pipeline to run tests on PRs.
+
 ## Project Structure
 
 ```
