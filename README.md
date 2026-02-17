@@ -370,7 +370,7 @@ pytest -q
 
 ## Future Work (Production Hardening)
 
-If this were taken beyond a take-home assignment into a production system, the next improvements would be:
+the next improvements would be:
 
 - **Authentication & authorization**: protect endpoints (JWT/OAuth), multi-user isolation.
 - **Rate limiting & abuse protection**: per-IP/user limits for upload, chat, and interpretation (return HTTP 429).
