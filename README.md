@@ -346,6 +346,14 @@ Commit and push so Railway redeploys. Without this, the browser will block API r
 
 **Note:** `NEXT_PUBLIC_API_URL` is fixed at **build time**. If you change it in Vercel, you must **redeploy** the frontend for the change to take effect.
 
+### Recovering from a database reset (e.g. Railway volume wipe)
+
+If you wiped or recreated the Postgres volume, all tables and data are gone. The backend recreates tables automatically on **startup** only.
+
+1. **Railway** → **Postgres** service: copy the current **public** `DATABASE_URL` (it may have changed after a reset).
+2. **Railway** → **Backend** service → **Variables**: set `DATABASE_URL` to that value (update if it changed).
+3. **Redeploy or restart the backend** (Deployments → ⋮ → **Redeploy**, or trigger a new deploy from GitHub). On startup, the app runs `Base.metadata.create_all` and recreates `las_files`, `curves`, and `curve_samples`. Uploads will work again; existing data will not return.
+
 ---
 
 ## Project Structure
